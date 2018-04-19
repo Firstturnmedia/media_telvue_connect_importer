@@ -1,0 +1,5 @@
+name = Media Telvue Connect Importer Existing
+description = Adds and updates a Show GUID field
+package = "Media"
+core = 7.x
+dependencies[] = media_telvue_connect

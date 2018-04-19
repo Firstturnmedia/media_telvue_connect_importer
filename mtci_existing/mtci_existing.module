@@ -1,0 +1,186 @@
+<?php
+
+// Get connect id from config
+define('MTCI_CONNECT_ID', variable_get('mtci_existing_connect_id', FALSE));
+
+/**
+ * Implements hook_permission().
+ */
+function mtci_existing_permission() {
+  return array(
+    'administer mtci existing' => array(
+    'title' => t('Administer MTCI Existing'),
+    'description' => t('Provides access to run MTCI Existing Batch')
+  ));
+}
+
+/**
+ * Implements hook_menu().
+ */
+function mtci_existing_menu() {
+  $items = array();
+
+  $items['admin/mtci-existing'] = array(
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('mtci_existing_form'),
+    'access arguments' => array('administer mtci existing'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['admin/config/mtci-existing'] = array(
+    'title' => 'MTCI Existing',
+    'description' => 'Configure MTCI Existing',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('mtci_existing_settings_form'),
+    'access arguments' => array('administer mtci existing'),
+    'file' => 'mtci_existing.admin.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * Form.
+ */
+function mtci_existing_form($form, &$form_state) {
+  $form['mtci_existing_message'] = array (
+		'#type' => 'item',
+		'#markup' => 'Clicking this button will update existing shows w/ a Show GUID.',
+	);
+
+  $form['mtci_existing'] = array(
+    '#type' => 'submit',
+    '#value' => t('Run MTCI Existing'),
+  );
+
+  return $form;
+}
+
+/**
+ * Form validate
+ */
+function mtci_existing_form_validate($form, &$form_state) {
+  // Check that connect ID has been set.
+  if (!MTCI_CONNECT_ID) {
+    form_set_error('mtci_existing', t('Please add a Connect ID!'));
+  }
+}
+
+/**
+ * Form Submit.
+ */
+function mtci_existing_form_submit($form, &$form_state) {
+  // Get count of shows for max count
+  $query = new EntityFieldQuery();
+    $query->entityCondition('entity_type', 'node');
+    $query->entityCondition('bundle', 'cm_show');
+
+  // Get max count
+  $max_count = $query->count()->execute();
+
+  if ($max_count > 0) {
+    $form_values = array(
+  	  'max' => $max_count,
+    );
+
+    $operations[] = array('mtci_existing_batch_op', array($form_values));
+
+    $batch = array(
+      'operations' => $operations,
+      'finished' => 'mtci_existing_batch_finished',
+      'title' => t("MTCI Existing Batch"),
+      'init_message' => t('MTCI Existing Batch is starting...'),
+      'error_message' => t('Error!'),
+    );
+
+    batch_set($batch);
+  }
+  else {
+    drupal_set_message(t('No data to process.'));
+  }
+}
+
+/**
+ * Batch operation
+ */
+function mtci_existing_batch_op($form_values, &$context) {
+  // Set initial batch $context values
+  if (empty($context['sandbox'])) {
+    $context['sandbox']['progress'] = 0;
+    $context['sandbox']['current_node'] = 0;
+    $context['sandbox']['max'] = $form_values['max'];
+  }
+
+  if ($context['sandbox']['progress'] != $context['sandbox']['max']) {
+    $limit = 10;
+
+    // Get all shows
+    $query = new EntityFieldQuery();
+      $query->entityCondition('entity_type', 'node');
+      $query->entityCondition('bundle', 'cm_show');
+      $query->propertyCondition('nid', $context['sandbox']['current_node'], '>');
+      $query->range(0, $limit);
+    $result = $query->execute();
+
+    if (isset($result['node'])) {
+      $nids = array_keys($result['node']);
+      $nodes = entity_load('node', $nids);
+
+      foreach ($nodes as $node) {
+        // Only run on Connect videos
+        if ($node->field_show_vod[LANGUAGE_NONE][0]['filemime'] == 'video/connect') {
+          // Get connect video ID
+          // Set string replacement
+          $str_replace_search = 'connect://id/' . MTCI_CONNECT_ID . '/video/';
+
+          // Stripe out everything but the connect video id
+          $connect_video_id = str_replace($str_replace_search, '', $node->field_show_vod[LANGUAGE_NONE][0]['uri']);
+
+          // Format: https://videoplayer.telvue.com/player/f3efhg7XsR-YcpRlQOnWV8S-4_LF2TVI/media/324750
+          // Generate show guid value
+          $show_guid = 'https://videoplayer.telvue.com/player/' . MTCI_CONNECT_ID . '/media/' . $connect_video_id;
+
+          // Update show guid field
+          $node->field_cmb_show_guid[LANGUAGE_NONE][0]['value'] = $show_guid;
+          field_attach_update('node', $node);
+        }
+
+        // Update batch $context values
+        $context['results'][] = $node->nid . ' : ' . check_plain($node->nid);
+        $context['sandbox']['progress']++;
+        $context['sandbox']['current_node'] = $node->nid;
+        $context['message'] = 'Processed ' . $context['sandbox']['progress'] . ' of ' . $context['sandbox']['max'] . ' shows.';
+      }
+    }
+  }
+  // @todo why have both of these? the Else and the final If?
+  else {
+    $context['finished'] = $context['sandbox']['progress'] / $context['sandbox']['max'];
+  }
+
+  if ($context['sandbox']['progress'] != $context['sandbox']['max']) {
+    $context['finished'] = $context['sandbox']['progress'] / $context['sandbox']['max'];
+  }
+}
+
+/**
+ * Batch 'finished' callback
+ */
+function mtci_existing_batch_finished($success, $results, $operations) {
+  if ($success) {
+    drupal_set_message(t('MTCI Existing Batch is Complete!'));
+  }
+  else {
+    // An error occurred.
+    // $operations contains the operations that remained unprocessed.
+    $error_operation = reset($operations);
+    drupal_set_message(
+      t('An error occurred while processing @operation with arguments : @args',
+        array(
+          '@operation' => $error_operation[0],
+          '@args' => print_r($error_operation[0], TRUE),
+        )
+      )
+    );
+  }
+}

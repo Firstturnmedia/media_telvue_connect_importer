@@ -1,0 +1,141 @@
+<?php
+
+// Constants
+define('MTCI_CONNECT_MRSS', variable_get('media_telvue_connect_importer_connect_mrss', FALSE));
+define('MTCI_SYNC_MODE', variable_get('media_telvue_connect_importer_sync_mode', FALSE));
+
+/**
+ * Implements hook_permission
+ */
+function media_telvue_connect_importer_permission() {
+  return array(
+    'administer media telvue connect importer' => array(
+    'title' => t('Media Telvue Connect Importer'),
+    'description' => t('Provides access to change Media Telvue Connect Importer Settings')
+  ));
+}
+
+/**
+ * Implements hook_menu().
+ */
+function media_telvue_connect_importer_menu() {
+  $items = array();
+
+  $items['admin/config/media-telvue-connect-importer'] = array(
+    'title' => 'Media Telvue Connect Importer',
+    'description' => 'Configure Media Telvue Connect Importer',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('media_telvue_connect_importer_settings_form'),
+    'access arguments' => array('administer media telvue connect importer'),
+    'file' => 'media_telvue_connect_importer.admin.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_cron().
+ */
+function media_telvue_connect_importer_cron() {
+  // @todo this seems wrong, but works?
+  media_telvue_connect_importer_import();
+}
+
+/**
+ * Callback function for cron task.
+ */
+function media_telvue_connect_importer_import() {
+  // Load helpers
+  module_load_include('inc', 'media_telvue_connect_importer', 'media_telvue_connect_importer.helpers');
+
+  // Get parsed xml data
+  $data = media_telvue_connect_importer_parse_xml_source();
+
+  if (MTCI_SYNC_MODE == 'basic') {
+    foreach ($data as $item) {
+      // Check if show already exists
+      if (!$show_exists = media_telvue_connect_importer_show_exists($item['link'])) {
+        // Show doesn't exist, so create new show
+        if ($show = media_telvue_connect_importer_create_show($item)) {
+          // Log success to watchdog.
+          watchdog(
+            $type = 'media_telvue_connect_importer',
+            $message = 'Success! Created show for Telvue Connect GUID: %guid',
+            $variables = array('%guid' => $item['link']),
+            $severity = WATCHDOG_INFO
+          );
+        }
+        // Something went wrong, so log it.
+        else {
+          // Log failure to watchdog.
+          watchdog(
+            $type = 'media_telvue_connect_importer',
+            $message = 'Failure! Could not create show for Telvue Connect GUID: %guid',
+            $variables = array('%guid' => $item['link']),
+            $severity = WATCHDOG_ALERT
+          );
+        }
+      }
+      // Duplicate
+      else {
+        // Log duplicate to watchdog.
+        watchdog(
+          $type = 'media_telvue_connect_importer',
+          $message = 'Duplicate! Show already exists, skipping import for Telvue Connect GUID: %guid',
+          $variables = array('%guid' => $item['link']),
+          $severity = WATCHDOG_ALERT
+        );
+      }
+    }
+  }
+  else if (MTCI_SYNC_MODE == 'advanced') {
+    foreach ($data as $item) {
+      // Find matching show via field_expected_filename == [$item->{'title'}]
+      if ($show_nid = media_telvue_connect_importer_advanced_show_exists($item['field_expected_filename'])) {
+        // Load the show node
+        $show_node = node_load($show_nid);
+
+        // Check for field_show_vod
+        if (!isset($show_node->field_show_vod[LANGUAGE_NONE])) {
+          // Update show, populate field_show_vod only.
+          if ($show = media_telvue_connect_importer_update_show($show_node, $item)) {
+            // Log success to watchdog.
+            watchdog(
+              $type = 'media_telvue_connect_importer_advanced',
+              $message = 'Success! Updated show for Telvue Connect GUID: %guid',
+              $variables = array('%guid' => $item['link']),
+              $severity = WATCHDOG_INFO
+            );
+          }
+          else {
+            // Log failure to watchdog.
+            watchdog(
+              $type = 'media_telvue_connect_importer_advanced',
+              $message = 'Failure! Could not update show for Telvue Connect GUID: %guid',
+              $variables = array('%guid' => $item['link']),
+              $severity = WATCHDOG_ALERT
+            );
+          }
+        }
+        else {
+          // Log that show matches, but already has a field_show_vod value.
+          watchdog(
+            $type = 'media_telvue_connect_importer_advanced',
+            $message = 'Failure! Show already has a field_show_vod value for Telvue Connect GUID: %guid',
+            $variables = array('%guid' => $item['link']),
+            $severity = WATCHDOG_INFO
+          );
+        }
+      }
+      // Log that no matching show could be found.
+      else {
+        watchdog(
+          $type = 'media_telvue_connect_importer_advanced',
+          $message = 'No matching expected file name! Skipping show update for Telvue Connect GUID: %guid',
+          $variables = array('%guid' => $item['link']),
+          $severity = WATCHDOG_INFO
+        );
+      }
+    }
+  }
+}

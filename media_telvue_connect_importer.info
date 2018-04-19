@@ -1,0 +1,5 @@
+name = Media Telvue Connect Importer
+description = Provides Telvue Connect importer for Media
+package = "Media"
+core = 7.x
+dependencies[] = media_telvue_connect
