@@ -111,16 +111,27 @@ function media_telvue_connect_importer_create_show($item) {
     // TODO why is this called embed code?
     $embed_code = $item['link'];
 
-    // How does this magically work?
-    $provider = media_internet_get_provider($embed_code);
-    $file = $provider->save();
+    // Handle the show vod
+    try {
+      $provider = media_internet_get_provider($embed_code);
+      $file = $provider->save();
 
-    // Add Fields?
-    if ($file) {
-      $node->field_show_vod[LANGUAGE_NONE][] = array(
-        'fid' => $file->fid,
-        'display' => 1,
-        'description' => NULL,
+      // Add show vod field
+      if ($file) {
+        $node->field_show_vod[LANGUAGE_NONE][] = array(
+          'fid' => $file->fid,
+          'display' => 1,
+          'description' => NULL,
+        );
+      }
+    }
+    catch (Exception $e) {
+      // Log the error instead to watchdog.
+      watchdog(
+        $type = 'media_telvue_connect_importer',
+        $message = 'Unable to get the media internet provider for embed_code: %embed_code',
+        $variables = array('%embed_code' => $embed_code),
+        $severity = WATCHDOG_ERROR
       );
     }
 
@@ -188,16 +199,28 @@ function media_telvue_connect_importer_update_show($node, $item) {
 
     // Create media asset
     $embed_code = $item['link'];
-    // How does this magically work?
-    $provider = media_internet_get_provider($embed_code);
-    $file = $provider->save();
 
-    // Save show to field_show_vod
-    if ($file) {
-      $node->field_show_vod[LANGUAGE_NONE][0] = array(
-        'fid' => $file->fid,
-        'display' => 1,
-        'description' => NULL,
+    // Handle the show vod
+    try {
+      $provider = media_internet_get_provider($embed_code);
+      $file = $provider->save();
+
+      // Add show vod field
+      if ($file) {
+        $node->field_show_vod[LANGUAGE_NONE][] = array(
+          'fid' => $file->fid,
+          'display' => 1,
+          'description' => NULL,
+        );
+      }
+    }
+    catch (Exception $e) {
+      // Log the error instead to watchdog.
+      watchdog(
+        $type = 'media_telvue_connect_importer',
+        $message = 'Unable to get the media internet provider for embed_code: %embed_code',
+        $variables = array('%embed_code' => $embed_code),
+        $severity = WATCHDOG_ERROR
       );
     }
 
