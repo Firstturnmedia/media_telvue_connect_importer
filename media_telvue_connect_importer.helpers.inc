@@ -35,7 +35,7 @@ function media_telvue_connect_importer_parse_xml_source() {
 
     $data[] = array(
       'link' => (string) $item->{'link'},
-      'title' => (string) $cloudcast->summary,
+      'title' => (string) $cloudcast->episode,
       'description' => (string) $media->description,
       'pubDate' => (string) $item->{'pubDate'},
       'program' => (string) $cloudcast->program,
@@ -95,7 +95,20 @@ function media_telvue_connect_importer_create_show($item) {
     // Node object
     $node = new stdClass();
     // @todo need proper source in xml
-    $node->title = $item['title'];
+
+    // Grab title after ' - ' processing
+    // Check if the hypen is part of the string
+    if (($pos = strpos($item['title'], ' - ')) !== FALSE) {
+      // Explode the raw title
+      $pieces = explode(' - ', $item['title']);
+      $title = $pieces[1];
+    }
+    // No hyphen to remove/process, so just use the raw title/episode value.
+    else {
+      $title = $item['title'];
+    }
+
+    $node->title = $title;
     $node->type = 'cm_show';
     node_object_prepare($node);
     $node->language = LANGUAGE_NONE;
