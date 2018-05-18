@@ -29,5 +29,14 @@ function media_telvue_connect_importer_settings_form($form, &$form_state) {
     '#size' => 120,
   );
 
+  // Option to create a series if one doesn't already exist.
+  $form['media_telvue_connect_importer_create_series'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Create series on import.'),
+    '#default_value' => variable_get('media_telvue_connect_importer_create_series', ''),
+    '#description' => 'Create series on import.',
+    '#size' => 120,
+  );
+
   return system_settings_form($form);
 }

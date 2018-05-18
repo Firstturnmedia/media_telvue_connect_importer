@@ -3,6 +3,7 @@
 // Constants
 define('MTCI_CONNECT_MRSS', variable_get('media_telvue_connect_importer_connect_mrss', FALSE));
 define('MTCI_SYNC_MODE', variable_get('media_telvue_connect_importer_sync_mode', FALSE));
+define('MTCI_CREATE_SERIES', variable_get('media_telvue_connect_importer_create_series', FALSE));
 
 /**
  * Implements hook_permission
@@ -30,31 +31,7 @@ function media_telvue_connect_importer_menu() {
     'file' => 'media_telvue_connect_importer.admin.inc',
   );
 
-  $items['wluisi_test/test1'] = array(
-    'page callback' => 'wluisi_test_test_1',
-    'access callback' => TRUE,
-  );
-
   return $items;
-}
-
-function wluisi_test_test_1() {
-  //$raw_title = "LIVE Culture - 15: (October 2017)";
-  $raw_title = 'Raw title w/ no hypen';
-
-  // Check if the hypen is part of the string
-  if (($pos = strpos($raw_title, ' - ')) !== FALSE) {
-    // Explode the raw title
-    $pieces = explode(' - ', $raw_title);
-    $title = $pieces[1];
-  }
-  else {
-    $title = $raw_title;
-  }
-
-  print $title;
-
-  return 'wluisi_test_test_1';
 }
 
 /**

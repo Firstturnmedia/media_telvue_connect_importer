@@ -184,6 +184,22 @@ function media_telvue_connect_importer_create_show($item) {
       $gid = media_telvue_connect_importer_find_series_by_title($item['program']);
 
       if ($gid) {
+        $gid = $gid;
+      }
+      // Create the series
+      else {
+        // Only create series if option is set
+        if (MTCI_CREATE_SERIES) {
+          if ($new_series_nid = media_telvue_connect_importer_create_series($item['program'])) {
+            $gid = $new_series_nid;
+          }
+        }
+      }
+
+      // Only do this if there's a gid, either from matching series title
+      // or from creating a new series
+      if ($gid) {
+        // Populate the show's og data
         $og_values = array(
           'entity_type' => 'node',
           'entity' => $node,
@@ -290,7 +306,7 @@ function media_telvue_connect_importer_create_tag($title) {
 }
 
 /**
- * Helper function to find show by title.
+ * Helper function to find series by title.
  */
 function media_telvue_connect_importer_find_series_by_title($title) {
   $nid = db_query("SELECT nid FROM {node} WHERE type = 'cm_project' AND title = :title",
@@ -304,4 +320,31 @@ function media_telvue_connect_importer_find_series_by_title($title) {
   else {
     return FALSE;
   }
+}
+
+/**
+ * Helper function to create a series.
+ */
+function media_telvue_connect_importer_create_series($title) {
+  $node->title = $title;
+  $node->type = 'cm_project';
+  node_object_prepare($node);
+  $node->language = LANGUAGE_NONE;
+  $node->uid = 1;
+  $node->status = 1;
+  $node->promote = 0;
+  $node->comment = 0;
+
+  // Save node
+  $node = node_submit($node);
+
+  try {
+    node_save($node);
+    $nid = $node->nid;
+  }
+  catch (Exception $e) {
+    $nid = FALSE;
+  }
+
+  return $nid;
 }
